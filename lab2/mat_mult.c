@@ -1,114 +1,98 @@
-#include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <mpi.h>
 
-#define MATSIZE 5000
-#define NRA MATSIZE
-#define NCA MATSIZE
-#define NCB MATSIZE
-#define MASTER 0
-#define FROM_MASTER 1
-#define FROM_WORKER 2
-
-int min(int a, int b){
-  if(a > b) return b;
-  return a;
-}
-
-// stack space is less so using heap
- double a[NRA][NCA],
-      b[NCA][NCB],
-      c[NRA][NCB];
+#define N_t 3
 
 int main(int argc, char *argv[])
 {
-  int numtasks,
-      taskid,
-      numworkers,
-      source,
-      dest,
-      mtype,
-      rows,
-      averow, extra, offset,
-      i, j, k, rc;
-  MPI_Status status;
+  int world_rank, world_size, i = 0, j = 0, k = 0;
+  int column = N_t;
+  int row = N_t;
+  int count = N_t * N_t;
 
-  MPI_Init(&argc, &argv);
-  MPI_Comm_rank(MPI_COMM_WORLD, &taskid);
-  MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
-  if (numtasks < 2)
+  char ch;
+  double *A, *B, *C, a = 0, b = 0, c = 0, n;
+  MPI_Init(NULL, NULL);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  if (world_rank == 0)
   {
-    printf("Need at least two MPI tasks. Quitting...\n");
-    MPI_Abort(MPI_COMM_WORLD, rc);
-    exit(1);
-  }
-  numworkers = numtasks - 1;
-
-  if (taskid == MASTER)
-  {
-    printf("mpi_mm has started with %d tasks.\n", numtasks);
-    for (i = 0; i < NRA; i++)
-      for (j = 0; j < NCA; j++)
-        a[i][j] = (i+j)%4;
-    for (i = 0; i < NCA; i++)
-      for (j = 0; j < NCB; j++)
-        b[i][j] = (i + j)%4;
-
-    double start = MPI_Wtime();
-    averow = NRA / numworkers;
-    extra = NRA % numworkers;
-    offset = 0;
-    mtype = FROM_MASTER;
-    for (dest = 1; dest <= numworkers; dest++)
+    if (count != world_size)
     {
-      rows = (dest <= extra) ? averow + 1 : averow;
-      printf("Sending %d rows to task %d offset=%d\n", rows, dest, offset);
-      MPI_Send(&offset, 1, MPI_INT, dest, mtype, MPI_COMM_WORLD);
-      MPI_Send(&rows, 1, MPI_INT, dest, mtype, MPI_COMM_WORLD);
-      MPI_Send(&a[offset][0], rows * NCA, MPI_DOUBLE, dest, mtype,
-               MPI_COMM_WORLD);
-      MPI_Send(&b, NCA * NCB, MPI_DOUBLE, dest, mtype, MPI_COMM_WORLD);
-      offset = offset + rows;
+      printf("No of processes must be equal to %d\n", count);
+      exit(0);
     }
-    mtype = FROM_WORKER;
-    for (i = 1; i <= numworkers; i++)
-    {
-      source = i;
-      MPI_Recv(&offset, 1, MPI_INT, source, mtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&rows, 1, MPI_INT, source, mtype, MPI_COMM_WORLD, &status);
-      MPI_Recv(&c[offset][0], rows * NCB, MPI_DOUBLE, source, mtype,
-               MPI_COMM_WORLD, &status);
-      printf("Received results from task %d\n", source);
-    }
-    printf("Result Matrix:\n");
-    for (i = 0; i < min(NRA, 10); i++)
-    {
-      printf("\n");
-      for (j = 0; j < min(NCB, 10); j++)
-        printf("%6.2f   ", c[i][j]);
-    }
-    double finish = MPI_Wtime();
-    printf("Done in %f seconds.\n", finish - start);
-  }
-  if (taskid > MASTER)
-  {
-    mtype = FROM_MASTER;
-    MPI_Recv(&offset, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD, &status);
-    MPI_Recv(&rows, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD, &status);
-    MPI_Recv(&a, rows * NCA, MPI_DOUBLE, MASTER, mtype, MPI_COMM_WORLD, &status);
-    MPI_Recv(&b, NCA * NCB, MPI_DOUBLE, MASTER, mtype, MPI_COMM_WORLD, &status);
+    A = (double *)malloc(sizeof(double) * row * column); // matrix in row major form
+    B = (double *)malloc(sizeof(double) * row * column);
+    k = 0;
 
-    for (k = 0; k < NCB; k++)
-      for (i = 0; i < rows; i++)
+    printf("A matrix:\n");
+    for (i = 0; i < row; i++)
+    {
+      for (j = 0; j < column; j++)
       {
-        c[i][k] = 0.0;
-        for (j = 0; j < NCA; j++)
-          c[i][k] = c[i][k] + a[i][j] * b[j][k];
+        A[k] = (i + j);
+        printf("%6.2f\t", A[k]);
+        k++;
       }
-    mtype = FROM_WORKER;
-    MPI_Send(&offset, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD);
-    MPI_Send(&rows, 1, MPI_INT, MASTER, mtype, MPI_COMM_WORLD);
-    MPI_Send(&c, rows * NCB, MPI_DOUBLE, MASTER, mtype, MPI_COMM_WORLD);
+      printf("\n");
+    }
+
+    k = 0;
+    printf("\nB matrix:\n");
+    for (i = 0; i < row; i++)
+    {
+      for (j = 0; j < column; j++)
+      {
+        B[k] = i + j;
+        printf("%6.2f\t", B[k]);
+        k++;
+      }
+      printf("\n");
+    }
+  }
+
+  MPI_Bcast(&row, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  int periods[] = {1, 1}; //both vertical and horizontal movement;
+  int dims[] = {row, row};
+  int coords[2];                             /* 2 Dimension topology so 2 coordinates */
+  int right = 0, left = 0, down = 0, up = 0; // neighbor ranks
+  MPI_Comm cart_comm;
+  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 1, &cart_comm);
+  MPI_Scatter(A, 1, MPI_DOUBLE, &a, 1, MPI_DOUBLE, 0, cart_comm);
+  MPI_Scatter(B, 1, MPI_DOUBLE, &b, 1, MPI_DOUBLE, 0, cart_comm);
+  MPI_Comm_rank(cart_comm, &world_rank);
+  MPI_Cart_coords(cart_comm, world_rank, 2, coords);
+  MPI_Cart_shift(cart_comm, 1, coords[0], &left, &right);
+  MPI_Cart_shift(cart_comm, 0, coords[1], &up, &down);
+  MPI_Sendrecv_replace(&a, 1, MPI_DOUBLE, left, 11, right, 11, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv_replace(&b, 1, MPI_DOUBLE, up, 11, down, 11, cart_comm, MPI_STATUS_IGNORE);
+  c = c + a * b;
+  for (i = 1; i < row; i++)
+  {
+    MPI_Cart_shift(cart_comm, 1, 1, &left, &right);
+    MPI_Cart_shift(cart_comm, 0, 1, &up, &down);
+    MPI_Sendrecv_replace(&a, 1, MPI_DOUBLE, left, 11, right, 11, cart_comm, MPI_STATUS_IGNORE);
+    MPI_Sendrecv_replace(&b, 1, MPI_DOUBLE, up, 11, down, 11, cart_comm, MPI_STATUS_IGNORE);
+    c = c + a * b;
+  }
+  C = (double *)calloc(sizeof(double), row * row);
+  MPI_Gather(&c, 1, MPI_DOUBLE, C, 1, MPI_DOUBLE, 0, cart_comm);
+  if (world_rank == 0)
+  {
+    k = 0;
+    printf("\nA * B:\n");
+    for (i = 0; i < row; i++)
+    {
+      for (j = 0; j < row; j++)
+      {
+        printf("%6.2f\t", C[k]);
+        k++;
+      }
+      printf("\n");
+    }
   }
   MPI_Finalize();
+  return 0;
 }
