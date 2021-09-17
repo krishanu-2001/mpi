@@ -91,32 +91,22 @@ void mergeSort(int *a, int *b, int l, int r)
 
 int main(int argc, char *argv[])
 {
-  srand(time(NULL));
-  // srand(0);
-
   int world_rank, world_size;
-
+  double time1, time2,duration;
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
+  srand(world_rank+1);
   /*---------- Take Input ----------*/
   int n;
-  int *arr;
   if (world_rank == 0)
   {
     printf("Input array size(n): ");
-    scanf("%d", &n);
-    arr = (int *)calloc(n, sizeof(int));
-    printf("Array: ");
-    for (int i = 0; i < n; i++)
-    {
-      arr[i] = randInt();
-      printf("%d ", arr[i]);
-    }
-    printf("\n");
+    scanf("%d", &n);    
   }
 
+
+  time1 = MPI_Wtime();
   /*---------- Broadcast ----------*/
   MPI_Bcast(&n, sizeof(int), MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -133,11 +123,12 @@ int main(int argc, char *argv[])
 
   int sizeSorted = r;
   
-  MPI_Scatter(arr, r, MPI_INT, subarray, r, MPI_INT, 0, MPI_COMM_WORLD);
+  // MPI_Scatter(arr, r, MPI_INT, subarray, r, MPI_INT, 0, MPI_COMM_WORLD);
 
   printf("Processor %d: subarray: ", world_rank);
   for (int i = 0; i < r; i++)
   {
+    subarray[i] = randInt();
     printf("%d ", subarray[i]);
     sorted[i] = subarray[i];
   }
@@ -193,12 +184,18 @@ int main(int argc, char *argv[])
   }
 
   if(world_rank == 0){
+    time2 = MPI_Wtime();
+
+    duration = time2 - time1;
+
     printf("Sorted array - ");
     int r = sizeSorted;
     for(int i=0;i<r;i++){
       printf("%d ", sorted[i]);
     }
     printf("\n");
+    printf("Time taken by program = %0.9f\n", duration*1e6);
+
   }
 
   MPI_Barrier(MPI_COMM_WORLD);

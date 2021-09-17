@@ -80,6 +80,9 @@ void mergeSort(int *a, int *b, int l, int r)
 
 int main(int argc, char **argv)
 {
+
+  double time1, time2,duration;
+  
   MPI_Init(&argc, &argv);
   /********** Create and populate the array **********/
   int n = atoi(argv[1]);
@@ -87,14 +90,16 @@ int main(int argc, char **argv)
 
   int c;
   srand(time(NULL));
-  printf("This is the unsorted array: ");
+  // printf("This is the unsorted array: ");
   for (int i = 1; i <= n; i++)
   {
-    original_array[i - 1] = atoi(argv[i + 1]);
-    printf("%d ", original_array[i-1]);
+    original_array[i - 1] = rand() % 10000;
+    // printf("%d ", original_array[i-1]);
   }
 
-  printf("\n");
+  // printf("\n");
+
+  time1 = MPI_Wtime();
 
   /********** Initialize MPI **********/
   int world_rank;
@@ -112,11 +117,11 @@ int main(int argc, char **argv)
 
   /********** Perform the mergesort on each process **********/
   int *tmp_array = malloc(size * sizeof(int));
-  printf("Processor number - %d\n", world_rank);
+  // printf("Processor number - %d\n", world_rank);
   for(int i=0;i<size;i++){
-    printf("%d ", sub_array[i]);
+    // printf("%d ", sub_array[i]);
   }
-  printf("\n");
+  // printf("\n");
 
   mergeSort(sub_array, tmp_array, 0, (size - 1));
 
@@ -137,14 +142,20 @@ int main(int argc, char **argv)
     mergeSort(sorted, other_array, 0, (n - 1));
 
     /********** Display the sorted array **********/
-    printf("This is the sorted array: ");
+    // printf("This is the sorted array: ");
     for (c = 0; c < n; c++)
     {
-      printf("%d ", sorted[c]);
+      // printf("%d ", sorted[c]);
     }
 
-    printf("\n");
-    printf("\n");
+    // printf("\n");
+    // printf("\n");
+// 
+    time2 = MPI_Wtime();
+
+    duration = time2 - time1;
+
+    printf("Time taken by program = %0.9f\n", duration * 1e6);
 
     /********** Clean up root **********/
     free(sorted);
